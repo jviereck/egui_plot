@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
-use eframe::egui::{self, DragValue, Event, Vec2};
+use std::ops::RangeBounds;
+
+use eframe::egui::{self, DragValue, Event, Vec2, Vec2b};
 use egui_plot::{Legend, Line, PlotPoints};
 
 fn main() -> eframe::Result {
@@ -37,6 +39,8 @@ impl Default for PlotExample {
     }
 }
 
+
+
 impl eframe::App for PlotExample {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         egui::SidePanel::left("options").show(ctx, |ui| {
@@ -62,68 +66,45 @@ impl eframe::App for PlotExample {
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
-            let (scroll, pointer_down, modifiers) = ui.input(|i| {
-                let scroll = i.events.iter().find_map(|e| match e {
-                    Event::MouseWheel {
-                        unit: _,
-                        delta,
-                        modifiers: _,
-                    } => Some(*delta),
-                    _ => None,
-                });
-                (scroll, i.pointer.primary_down(), i.modifiers)
+            // let (scroll, pointer_down, modifiers) = ui.input(|i| {
+            //     let scroll = i.events.iter().find_map(|e| match e {
+            //         Event::MouseWheel {
+            //             unit: _,
+            //             delta,
+            //             modifiers: _,
+            //         } => Some(*delta),
+            //         _ => None,
+            //     });
+            //     (scroll, i.pointer.primary_down(), i.modifiers)
+            // });
+
+            // ui.label("This example shows how to use raw input events to implement different plot controls than the ones egui provides by default, e.g., default to zooming instead of panning when the Ctrl key is not pressed, or controlling much it zooms with each mouse wheel step.");
+
+            let mut points = Vec::new();
+
+            let mut x: f64 = 0.0;
+            while x < 3.15 {
+                points.push([x, x.sin()]);
+                x += 0.01;
+            }
+
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                plot(&points, ui, "plot0");
+                plot(&points, ui, "plot1");
             });
-
-            ui.label("This example shows how to use raw input events to implement different plot controls than the ones egui provides by default, e.g., default to zooming instead of panning when the Ctrl key is not pressed, or controlling much it zooms with each mouse wheel step.");
-
-            egui_plot::Plot::new("plot")
-                .allow_zoom(false)
-                .allow_drag(false)
-                .allow_scroll(false)
-                .legend(Legend::default())
-                .show(ui, |plot_ui| {
-                    if let Some(mut scroll) = scroll {
-                        if modifiers.ctrl == self.ctrl_to_zoom {
-                            scroll = Vec2::splat(scroll.x + scroll.y);
-                            let mut zoom_factor = Vec2::from([
-                                (scroll.x * self.zoom_speed / 10.0).exp(),
-                                (scroll.y * self.zoom_speed / 10.0).exp(),
-                            ]);
-                            if self.lock_x {
-                                zoom_factor.x = 1.0;
-                            }
-                            if self.lock_y {
-                                zoom_factor.y = 1.0;
-                            }
-                            plot_ui.zoom_bounds_around_hovered(zoom_factor);
-                        } else {
-                            if modifiers.shift == self.shift_to_horizontal {
-                                scroll = Vec2::new(scroll.y, scroll.x);
-                            }
-                            if self.lock_x {
-                                scroll.x = 0.0;
-                            }
-                            if self.lock_y {
-                                scroll.y = 0.0;
-                            }
-                            let delta_pos = self.scroll_speed * scroll;
-                            plot_ui.translate_bounds(delta_pos);
-                        }
-                    }
-                    if plot_ui.response().hovered() && pointer_down {
-                        let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
-                        if self.lock_x {
-                            pointer_translate.x = 0.0;
-                        }
-                        if self.lock_y {
-                            pointer_translate.y = 0.0;
-                        }
-                        plot_ui.translate_bounds(pointer_translate);
-                    }
-
-                    let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
-                    plot_ui.line(Line::new(sine_points).name("Sine"));
-                });
         });
     }
+}
+
+fn plot(points: &Vec<[f64; 2]>, ui: &mut egui::Ui, id_source: &str) {
+    egui_plot::Plot::new(id_source)
+        .set_margin_fraction([0., 0.01].into())
+        .legend(Legend::default())
+        .allow_drag(false)
+        .allow_scroll(false)
+        .height(300.0)
+        .show(ui, |plot_ui| {
+            plot_ui.set_auto_bounds([true, true].into());
+            plot_ui.line(Line::new(PlotPoints::new(points.clone())).name("Sine"));
+        });
 }
