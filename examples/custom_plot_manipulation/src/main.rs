@@ -4,7 +4,7 @@
 
 use std::ops::RangeBounds;
 
-use eframe::egui::{self, DragValue, Event, Vec2, Vec2b};
+use eframe::egui::{self, DragValue, Event, Id, Ui, Vec2, Vec2b};
 use egui_plot::{Legend, Line, PlotPoints};
 
 fn main() -> eframe::Result {
@@ -89,22 +89,34 @@ impl eframe::App for PlotExample {
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                plot(&points, ui, "plot0");
-                plot(&points, ui, "plot1");
+                let link_id = ui.id().with("linked_demo");
+                plot(&points, ui, "plot0", link_id);
+                plot(&points, ui, "plot1", link_id);
             });
         });
     }
 }
 
-fn plot(points: &Vec<[f64; 2]>, ui: &mut egui::Ui, id_source: &str) {
+fn plot(points: &Vec<[f64; 2]>, ui: &mut egui::Ui, id_source: &str, link_id: Id) {
     egui_plot::Plot::new(id_source)
-        .set_margin_fraction([0., 0.01].into())
+        .set_margin_fraction([0., 0.05].into())
         .legend(Legend::default())
-        .allow_drag(false)
-        .allow_scroll(false)
-        .height(300.0)
+        .allow_drag([true, false])
+        .allow_scroll([true, false])
+        .allow_zoom([true, false])
+        .height(400.0)
+        .link_axis(link_id, [true, false])
         .show(ui, |plot_ui| {
-            plot_ui.set_auto_bounds([true, true].into());
-            plot_ui.line(Line::new(PlotPoints::new(points.clone())).name("Sine"));
+            let last_bounds = plot_ui.plot_bounds();
+
+            let mut fpoints = Vec::new();
+            for [x, y] in points.iter() {
+                if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
+                    fpoints.push([*x, *y]);
+                }
+            }
+
+            plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
+            plot_ui.set_auto_bounds([false, true].into());
         });
 }
