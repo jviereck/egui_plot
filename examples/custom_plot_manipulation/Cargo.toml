@@ -19,3 +19,4 @@ env_logger = { workspace = true, default-features = false, features = [
     "auto-color",
     "humantime",
 ] }
+regex = "1.11.1"

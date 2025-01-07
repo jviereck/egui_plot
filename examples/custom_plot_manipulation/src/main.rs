@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
+use regex::Regex;
+
 use std::ops::RangeBounds;
 
 use eframe::egui::{self, DragValue, Event, Id, Ui, Vec2, Vec2b};
@@ -87,7 +89,6 @@ impl Default for PlotExample {
 }
 
 
-
 impl eframe::App for PlotExample {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         egui::SidePanel::left("options").show(ctx, |ui| {
@@ -114,7 +115,20 @@ impl eframe::App for PlotExample {
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.text_edit_singleline(&mut self.query);
+                let response = ui.text_edit_singleline(&mut self.query);
+                response.ctx.input(|input| {
+                    if input.key_pressed(egui::Key::Enter) {
+                        let queries = Regex::new(r"(([^[,])+([.+])?,?)+").unwrap();
+                        for entry in self.query.split("|") {
+                            if let Some(caps) = queries.captures(entry) {
+                                let (all, bits): (&str, [&str, _]) = caps.extract();
+                                for bit in bits {
+                                    println!("{}", bit);
+                                }
+                            }
+                        }
+                    }
+                });
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let link_id = ui.id().with("linked_demo");
