@@ -7,7 +7,50 @@ use std::ops::RangeBounds;
 use eframe::egui::{self, DragValue, Event, Id, Ui, Vec2, Vec2b};
 use egui_plot::{Legend, Line, PlotPoints};
 
+struct Data {
+    entity_path: String,
+    points: Vec<[f64; 2]>,
+}
+
+impl Data {
+    fn create(name: &str) -> Data {
+        Data {
+            entity_path: name.to_string(),
+            points: Vec::new()
+        }
+    }
+
+    fn add(&mut self, x: f64, y: f64) {
+        self.points.push([x, y]);
+    }
+}
+
+static mut data: Vec<Data> = Vec::new();
+
 fn main() -> eframe::Result {
+    // Create data.
+
+    let mut sin = Data::create("/data/trig[0]");
+    let mut cos = Data::create("/data/trig[1]");
+    let mut lin = Data::create("/data/lin");
+    let mut quat = Data::create("/data/pow[2]");
+    let mut trip = Data::create("/data/pow[3]");;
+
+    let mut x: f64 = 0.0;
+    while x < 3.15 {
+        sin.add(x, x.sin());
+        cos.add(x, x.cos());
+        lin.add(x, x);
+        quat.add(x, x.powi(2));
+        trip.add(x, x.powi(3));
+        x += 0.01;
+    }
+
+    // data.push(Data {
+    //     entity_path: "/data/trig[0]".to_string(),
+    //     points: Vec::new()
+    // });
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions::default();
     eframe::run_native(
@@ -17,7 +60,10 @@ fn main() -> eframe::Result {
     )
 }
 
+
+
 struct PlotExample {
+    query: String,
     lock_x: bool,
     lock_y: bool,
     ctrl_to_zoom: bool,
@@ -29,6 +75,7 @@ struct PlotExample {
 impl Default for PlotExample {
     fn default() -> Self {
         Self {
+            query: "".to_string(),
             lock_x: false,
             lock_y: false,
             ctrl_to_zoom: false,
@@ -66,38 +113,20 @@ impl eframe::App for PlotExample {
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
-            // let (scroll, pointer_down, modifiers) = ui.input(|i| {
-            //     let scroll = i.events.iter().find_map(|e| match e {
-            //         Event::MouseWheel {
-            //             unit: _,
-            //             delta,
-            //             modifiers: _,
-            //         } => Some(*delta),
-            //         _ => None,
-            //     });
-            //     (scroll, i.pointer.primary_down(), i.modifiers)
-            // });
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut self.query);
 
-            // ui.label("This example shows how to use raw input events to implement different plot controls than the ones egui provides by default, e.g., default to zooming instead of panning when the Ctrl key is not pressed, or controlling much it zooms with each mouse wheel step.");
-
-            let mut points = Vec::new();
-
-            let mut x: f64 = 0.0;
-            while x < 3.15 {
-                points.push([x, x.sin()]);
-                x += 0.01;
-            }
-
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let link_id = ui.id().with("linked_demo");
-                plot(&points, ui, "plot0", link_id);
-                plot(&points, ui, "plot1", link_id);
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let link_id = ui.id().with("linked_demo");
+                    plot(ui.id().with("plot0"), link_id);
+                    plot(ui.id().with("plot1"), link_id);
+                });
             });
         });
     }
 }
 
-fn plot(points: &Vec<[f64; 2]>, ui: &mut egui::Ui, id_source: &str, link_id: Id) {
+fn plot<'a>(id_source: Id, link_id: Id) -> egui_plot::Plot<'a> {
     egui_plot::Plot::new(id_source)
         .set_margin_fraction([0., 0.05].into())
         .legend(Legend::default())
@@ -106,17 +135,17 @@ fn plot(points: &Vec<[f64; 2]>, ui: &mut egui::Ui, id_source: &str, link_id: Id)
         .allow_zoom([true, false])
         .height(400.0)
         .link_axis(link_id, [true, false])
-        .show(ui, |plot_ui| {
-            let last_bounds = plot_ui.plot_bounds();
+        // .show(ui, |plot_ui| {
+        //     let last_bounds = plot_ui.plot_bounds();
 
-            let mut fpoints = Vec::new();
-            for [x, y] in points.iter() {
-                if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
-                    fpoints.push([*x, *y]);
-                }
-            }
+        //     let mut fpoints = Vec::new();
+        //     for [x, y] in points.iter() {
+        //         if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
+        //             fpoints.push([*x, *y]);
+        //         }
+        //     }
 
-            plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
-            plot_ui.set_auto_bounds([false, true].into());
-        });
+        //     plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
+        //     plot_ui.set_auto_bounds([false, true].into());
+        // });
 }
