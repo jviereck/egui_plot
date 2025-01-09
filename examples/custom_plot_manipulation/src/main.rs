@@ -29,8 +29,41 @@ impl Data {
 
 static mut data: Vec<Data> = Vec::new();
 
-fn main() -> eframe::Result {
+
+fn parse(query: String) {
+    let queries = Regex::new(r"^\s*([^\[,]+)(\[[^\]]*\])?,?\s*").unwrap();
+    for (idx, entry) in query.split("|").enumerate() {
+        println!("Plot {} - subquery='{}'", idx, entry);
+
+        let mut remain = String::from(entry);
+        while remain.len() > 0 {
+            if let Some(caps) = queries.captures(&remain) {
+                for (i, cap) in caps.iter().enumerate() {
+                    if i == 0 {
+                        println!("  {}", cap.unwrap().as_str());
+                    } else {
+                        println!("    {}", cap.map_or("<no-match>", |m| m.as_str()));
+                    }
+                }
+                // // Dealing with variable change in matching groups.
+                let all = caps.get(0).unwrap().as_str();
+                // let path = caps.get(1).unwrap().as_str();
+                // let range = caps.get(2).map_or("", |m| m.as_str());
+                // println!("  {} -> {} @ {}", all, path, range);
+                remain = remain.split_off(all.len());
+            } else {
+                // If no match and still bytes left in
+                // `remain`, then got stuck with parsing.
+                println!("Got stuck -> exit");
+                break;
+            }
+        }
+    }
+}
+
+fn main() /*-> eframe::Result*/ {
     // Create data.
+    parse(String::from("test[1:2], foo | bar, baz[:3]"));
 
     let mut sin = Data::create("/data/trig[0]");
     let mut cos = Data::create("/data/trig[1]");
@@ -53,13 +86,15 @@ fn main() -> eframe::Result {
     //     points: Vec::new()
     // });
 
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
-    let options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "Plot",
-        options,
-        Box::new(|_cc| Ok(Box::<PlotExample>::default())),
-    )
+
+
+    // env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    // let options = eframe::NativeOptions::default();
+    // eframe::run_native(
+    //     "Plot",
+    //     options,
+    //     Box::new(|_cc| Ok(Box::<PlotExample>::default())),
+    // )
 }
 
 
@@ -118,15 +153,7 @@ impl eframe::App for PlotExample {
                 let response = ui.text_edit_singleline(&mut self.query);
                 response.ctx.input(|input| {
                     if input.key_pressed(egui::Key::Enter) {
-                        let queries = Regex::new(r"(([^[,])+([.+])?,?)+").unwrap();
-                        for entry in self.query.split("|") {
-                            if let Some(caps) = queries.captures(entry) {
-                                let (all, bits): (&str, [&str, _]) = caps.extract();
-                                for bit in bits {
-                                    println!("{}", bit);
-                                }
-                            }
-                        }
+                        parse(self.query.clone());
                     }
                 });
 
