@@ -30,14 +30,32 @@ impl Data {
 static mut data: Vec<Data> = Vec::new();
 
 
-fn parse(query: String) {
-    let queries = Regex::new(r"^\s*([^\[,]+)(\[[^\]]*\])?,?\s*").unwrap();
-    for (idx, entry) in query.split("|").enumerate() {
-        println!("Plot {} - subquery='{}'", idx, entry);
+struct PlotQuery {
+    plot_index: i32,
+    path: String,
+    ranges: Vec<(i32, i32)>
+}
 
+struct PlotLayouts {
+    plot_count: i32,
+    queries: Vec<PlotQuery>
+}
+
+fn parse(query: String) -> PlotLayouts {
+    let reg = Regex::new(r"^\s*([^\[,]+)(\[[^\]]*\])?,?\s*").unwrap();
+    let plot_queries = query.split("|");
+    let mut plot_count = 0;
+
+    let all_queries: Vec<PlotQuery> = plot_queries.enumerate().flat_map(|(plot_index, entry)| {
+        plot_count += 1;
+
+        // The queries for this plot.
+        let mut plot_queries: Vec<PlotQuery> = Vec::new();
+
+        // While there is still more of the input to parse, keep going.
         let mut remain = String::from(entry);
         while remain.len() > 0 {
-            if let Some(caps) = queries.captures(&remain) {
+            if let Some(caps) = reg.captures(&remain) {
                 for (i, cap) in caps.iter().enumerate() {
                     if i == 0 {
                         println!("  {}", cap.unwrap().as_str());
@@ -58,6 +76,12 @@ fn parse(query: String) {
                 break;
             }
         }
+        return plot_queries;
+    }).collect();
+
+    return PlotLayouts {
+        plot_count: plot_count,
+        queries: all_queries
     }
 }
 
