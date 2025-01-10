@@ -195,7 +195,6 @@ impl Default for PlotExample {
     }
 }
 
-
 impl eframe::App for PlotExample {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         if self.data.len() == 0 {
@@ -242,38 +241,35 @@ impl eframe::App for PlotExample {
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.vertical(|ui| {
                 let response = ui.text_edit_singleline(&mut self.query);
                 response.ctx.input(|input| {
                     if input.key_pressed(egui::Key::Enter) {
                         self.plot_layout = parse(self.query.as_str());
+                        println!("plot_count={}", self.plot_layout.plot_count);
                     }
                 });
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let link_id = ui.id().with("linked_demo");
 
-                    println!("Draw {}", self.plot_layout.plot_count);
+                    for plot_index in 0..self.plot_layout.plot_count {
+                        println!("plotting: {}", plot_index);
+                        let plot = init_plot(ui.id().with(format!("plot{}", plot_index)), link_id);
+                        plot.show(ui, |plot_ui| {
+                            let last_bounds = plot_ui.plot_bounds();
 
-                    // for plot_index in 0..self.plot_layout.plot_count.min(1) {
-                    //     let plot = init_plot(ui.id().with(format!("plot{}", plot_index)), link_id);
-                    //     plot.show(ui, |plot_ui| {
-
-                    //     });
-                    // }
-                    init_plot(ui.id().with("plot0"), link_id).show(ui, |plot_ui| {
-                        let last_bounds = plot_ui.plot_bounds();
-
-                        let mut fpoints = Vec::new();
-                        for [x, y] in self.data[0].points.iter() {
-                            if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
-                                fpoints.push([*x, *y]);
+                            let mut fpoints = Vec::new();
+                            for [x, y] in self.data[0].points.iter() {
+                                if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
+                                    fpoints.push([*x, *y]);
+                                }
                             }
-                        }
 
-                        plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
-                        plot_ui.set_auto_bounds([false, true].into());
-                    });
+                            plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
+                            plot_ui.set_auto_bounds([false, true].into());
+                        });
+                    }
                 });
             });
         });
@@ -289,17 +285,4 @@ fn init_plot<'a>(id_source: Id, link_id: Id) -> egui_plot::Plot<'a> {
         .allow_zoom([true, false])
         .height(400.0)
         .link_axis(link_id, [true, false])
-        // .show(ui, |plot_ui| {
-        //     let last_bounds = plot_ui.plot_bounds();
-
-        //     let mut fpoints = Vec::new();
-        //     for [x, y] in points.iter() {
-        //         if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
-        //             fpoints.push([*x, *y]);
-        //         }
-        //     }
-
-        //     plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
-        //     plot_ui.set_auto_bounds([false, true].into());
-        // });
 }
