@@ -201,11 +201,11 @@ impl eframe::App for PlotExample {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         if self.data.len() == 0 {
             // Create data.
-            let mut sin = Data::create("/data/trig[0]");
-            let mut cos = Data::create("/data/trig[1]");
-            let mut lin = Data::create("/data/lin");
-            let mut quat = Data::create("/data/pow[2]");
-            let mut trip = Data::create("/data/pow[3]");;
+            let mut sin = Data::create("trig[0]");
+            let mut cos = Data::create("trig[1]");
+            let mut lin = Data::create("pow[1]");
+            let mut quat = Data::create("pow[2]");
+            let mut trip = Data::create("pow[3]");
 
             let mut x: f64 = 0.0;
             while x < 3.15 {
@@ -218,29 +218,19 @@ impl eframe::App for PlotExample {
             }
 
             self.data.push(sin);
+            self.data.push(cos);
+            self.data.push(lin);
+            self.data.push(quat);
+            self.data.push(trip);
         }
 
         egui::SidePanel::left("options").show(ctx, |ui| {
-            ui.checkbox(&mut self.lock_x, "Lock x axis").on_hover_text("Check to keep the X axis fixed, i.e., pan and zoom will only affect the Y axis");
-            ui.checkbox(&mut self.lock_y, "Lock y axis").on_hover_text("Check to keep the Y axis fixed, i.e., pan and zoom will only affect the X axis");
-            ui.checkbox(&mut self.ctrl_to_zoom, "Ctrl to zoom").on_hover_text("If unchecked, the behavior of the Ctrl key is inverted compared to the default controls\ni.e., scrolling the mouse without pressing any keys zooms the plot");
-            ui.checkbox(&mut self.shift_to_horizontal, "Shift for horizontal scroll").on_hover_text("If unchecked, the behavior of the shift key is inverted compared to the default controls\ni.e., hold to scroll vertically, release to scroll horizontally");
-            ui.horizontal(|ui| {
-                ui.add(
-                    DragValue::new(&mut self.zoom_speed)
-                        .range(0.1..=2.0)
-                        .speed(0.1),
-                );
-                ui.label("Zoom speed").on_hover_text("How fast to zoom in and out with the mouse wheel");
-            });
-            ui.horizontal(|ui| {
-                ui.add(
-                    DragValue::new(&mut self.scroll_speed)
-                        .range(0.1..=100.0)
-                        .speed(0.1),
-                );
-                ui.label("Scroll speed").on_hover_text("How fast to pan with the mouse wheel");
-            });
+            let text: Vec<String> = self.data.iter().map(|d| {
+                let mut res  = d.entity_path.clone();
+                res.insert_str(0, "* ");
+                res
+            }).collect();
+            ui.label(text.join("\n"));
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
@@ -259,7 +249,7 @@ impl eframe::App for PlotExample {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let link_id = ui.id().with("linked_demo");
 
-                    for plot_index in 0..self.plot_layout.plot_count {
+                    for plot_index in 0..1.min(self.plot_layout.plot_count) {
                         println!("plotting: {}", plot_index);
                         let plot = init_plot(ui.id().with(format!("plot{}", plot_index)), link_id);
                         plot.show(ui, |plot_ui| {
