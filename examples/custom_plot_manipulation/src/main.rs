@@ -166,6 +166,7 @@ fn main() -> eframe::Result {
 
 struct PlotExample {
     query: String,
+    timewindow: String,
     lock_x: bool,
     lock_y: bool,
     ctrl_to_zoom: bool,
@@ -180,6 +181,7 @@ impl Default for PlotExample {
     fn default() -> Self {
         Self {
             query: "".to_string(),
+            timewindow: "".to_string(),
             lock_x: false,
             lock_y: false,
             ctrl_to_zoom: false,
@@ -242,12 +244,16 @@ impl eframe::App for PlotExample {
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                let response = ui.text_edit_singleline(&mut self.query);
-                response.ctx.input(|input| {
-                    if input.key_pressed(egui::Key::Enter) {
-                        self.plot_layout = parse(self.query.as_str());
-                        println!("plot_count={}", self.plot_layout.plot_count);
-                    }
+                ui.horizontal(|ui| {
+                    let response = ui.text_edit_multiline(&mut self.query);
+                    response.ctx.input(|input| {
+                        if input.key_pressed(egui::Key::Enter) {
+                            self.plot_layout = parse(self.query.as_str());
+                            println!("plot_count={}", self.plot_layout.plot_count);
+                        }
+                    });
+
+                    ui.text_edit_singleline(&mut self.timewindow);
                 });
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
