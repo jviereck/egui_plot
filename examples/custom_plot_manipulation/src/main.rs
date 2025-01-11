@@ -10,14 +10,29 @@ use eframe::egui::{self, DragValue, Event, Id, TextBuffer, Ui, Vec2, Vec2b};
 use egui_plot::{Legend, Line, PlotPoints};
 
 struct Data {
-    entity_path: String,
+    name: String,
+    path: String,
+    index: i32,
     points: Vec<[f64; 2]>,
 }
 
 impl Data {
     fn create(name: &str) -> Data {
+        let reg = Regex::new(r"^([^\[]+)\[(\d+)\]$").unwrap();
+        if let Some(caps) = reg.captures(name) {
+            let (_, [path_str, index_str]) = caps.extract();
+
+            return Data {
+                name: name.to_string(),
+                path: path_str.to_string(),
+                index: index_str.parse().unwrap(),
+                points: Vec::new()
+            }
+        }
         Data {
-            entity_path: name.to_string(),
+            name: "FAILED TO PARSE".to_string(),
+            path: "FAILED TO MATCH NAME".to_string(),
+            index: -1,
             points: Vec::new()
         }
     }
@@ -68,10 +83,11 @@ fn parseSeriesProperty(def: &str) -> Vec<(i32, i32)> {
                     });
                 }
 
-                from = caps.get(1).unwrap().as_str().parse().unwrap_or(from);
+                let from_str = caps.get(1).unwrap().as_str();
+                from = from_str.parse().unwrap_or(from);
                 to = match caps.get(2) {
                     Some(val) => &val.as_str()[1..],
-                    None => "".as_str()
+                    None => from_str
                 }.parse().unwrap_or(to);
             } else {
                 println!("Got stuck -> exit");
@@ -86,12 +102,18 @@ fn parseSeriesProperty(def: &str) -> Vec<(i32, i32)> {
 
 fn parse(query: &str) -> PlotLayouts {
     let reg = Regex::new(r"^\s*([^\[,]+)(\[[^\]]*\])?,?\s*").unwrap(); // TODO: Make this a lazy-cell.
-    let plot_queries = query.split("|");
-    let mut plot_count = 0;
 
+    // Ignore whitespace and newlines. Each plot query is seperated by "|""
+    let wo_newline = query.replace("\n", "");
+    let wo_whitespace = wo_newline.replace(" ", "");
+    let plot_queries = wo_whitespace.split("|");
+
+    let mut plot_count = 0;
     let series: Vec<SeriesQuery> = plot_queries.enumerate().flat_map(|(i, layout)| {
         let plot_index = i as i32;
         plot_count += 1;
+
+        println!("PlotIdx={} -> {}", plot_index, layout);
 
         // The queries for this plot.
         let mut plot_series: Vec<SeriesQuery> = Vec::new();
@@ -108,7 +130,7 @@ fn parse(query: &str) -> PlotLayouts {
                     }
                 }
                 // // Dealing with variable change in matching groups.
-                let path = caps.get(1).unwrap().as_str().to_string();
+                let path_str = caps.get(1).unwrap().as_str().to_string();
                 let range_str = match caps.get(2) {
                     Some(val) => &val.as_str()[1..val.len()-1],
                     None => "".as_str()
@@ -116,7 +138,7 @@ fn parse(query: &str) -> PlotLayouts {
                 let ranges = parseSeriesProperty(range_str);
                 plot_series.push(SeriesQuery {
                     plot_index,
-                    path,
+                    path: path_str, // Ignore whitespace
                     ranges
                 });
 
@@ -138,19 +160,6 @@ fn parse(query: &str) -> PlotLayouts {
     }
 }
 
-mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
-
-    #[test]
-    fn test_parse() {
-        let res = parse("data/test[1:2], foo | taz[], all/that/is/there/toz[3],cat[4:]| bar, baz[:5,6:,7:8]");
-        assert_eq!(res.plot_count, 3);
-        assert_eq!(res.series.len(), 7);
-
-        // TODO: Add more tests.
-    }
-}
 
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
@@ -166,7 +175,6 @@ fn main() -> eframe::Result {
 
 struct PlotExample {
     query: String,
-    timewindow: String,
     lock_x: bool,
     lock_y: bool,
     ctrl_to_zoom: bool,
@@ -180,8 +188,7 @@ struct PlotExample {
 impl Default for PlotExample {
     fn default() -> Self {
         Self {
-            query: "".to_string(),
-            timewindow: "".to_string(),
+            query: "trig[0] | trig[1:], pow[1] |pow[2:]".to_string(),
             lock_x: false,
             lock_y: false,
             ctrl_to_zoom: false,
@@ -201,11 +208,11 @@ impl eframe::App for PlotExample {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         if self.data.len() == 0 {
             // Create data.
-            let mut sin = Data::create("trig[0]");
-            let mut cos = Data::create("trig[1]");
-            let mut lin = Data::create("pow[1]");
-            let mut quat = Data::create("pow[2]");
-            let mut trip = Data::create("pow[3]");
+            let mut sin = Data::create("/data/trig[0]");
+            let mut cos = Data::create("/data/trig[1]");
+            let mut lin = Data::create("/data/pow[1]");
+            let mut quat = Data::create("/data/pow[2]");
+            let mut trip = Data::create("/data/pow[3]");
 
             let mut x: f64 = 0.0;
             while x < 3.15 {
@@ -222,19 +229,26 @@ impl eframe::App for PlotExample {
             self.data.push(lin);
             self.data.push(quat);
             self.data.push(trip);
+
+            self.plot_layout = parse(self.query.as_str());
         }
 
         egui::SidePanel::left("options").show(ctx, |ui| {
             let text: Vec<String> = self.data.iter().map(|d| {
-                let mut res  = d.entity_path.clone();
+                let mut res  = d.name.clone();
                 res.insert_str(0, "* ");
                 res
             }).collect();
-            ui.label(text.join("\n"));
+
+            let mut content = "Available Data:\n".to_owned();
+            content.push_str(text.join("\n").as_str());
+            ui.label(content);
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
+                    ui.label("Plot layout:");
+
                     let response = ui.text_edit_multiline(&mut self.query);
                     response.ctx.input(|input| {
                         if input.key_pressed(egui::Key::Enter) {
@@ -243,26 +257,37 @@ impl eframe::App for PlotExample {
                         }
                     });
 
-                    ui.text_edit_singleline(&mut self.timewindow);
+                    // ui.text_edit_singleline(&mut self.timewindow);
                 });
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let link_id = ui.id().with("linked_demo");
 
-                    for plot_index in 0..1.min(self.plot_layout.plot_count) {
-                        println!("plotting: {}", plot_index);
+                    for plot_index in 0..self.plot_layout.plot_count {
+                        // println!("plotting: {}", plot_index);
                         let plot = init_plot(ui.id().with(format!("plot{}", plot_index)), link_id);
                         plot.show(ui, |plot_ui| {
                             let last_bounds = plot_ui.plot_bounds();
 
-                            let mut fpoints = Vec::new();
-                            for [x, y] in self.data[0].points.iter() {
-                                if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
-                                    fpoints.push([*x, *y]);
-                                }
-                            }
+                            // Get the data to display in this plot.
+                            let plot_data = data_for_plot(
+                                &self.data, &self.plot_layout, plot_index);
 
-                            plot_ui.line(Line::new(PlotPoints::new(fpoints)).name("Sine"));
+                            // Plot all the data that should go into this plot.
+                            plot_data.iter().for_each(|data| {
+                                // Filter data for the displayed range.
+                                let mut fpoints = Vec::new();
+                                for [x, y] in data.points.iter() {
+                                    if *x >= last_bounds.min()[0] && *x <= last_bounds.max()[0] {
+                                        fpoints.push([*x, *y]);
+                                    }
+                                }
+
+                                plot_ui
+                                    .line(Line::new(PlotPoints::new(fpoints))
+                                    .name(data.name.as_str()));
+                            });
+
                             plot_ui.set_auto_bounds([false, true].into());
                         });
                     }
@@ -270,6 +295,30 @@ impl eframe::App for PlotExample {
             });
         });
     }
+}
+
+
+fn data_in_range(data: &Data, series: &SeriesQuery) -> bool {
+    series.ranges.iter().any(|r| {
+        r.0 <= data.index && data.index <= r.1
+    })
+}
+
+fn filter_data_for_series<'a>(data: &'a Vec<Data>, series: &SeriesQuery) -> Vec<&'a Data> {
+    data.iter()
+        .filter(|d| d.path.ends_with(series.path.as_str()))
+        .filter(|d| data_in_range(d, series))
+        .collect()
+}
+
+fn data_for_plot<'a>(data: &'a Vec<Data>, plot_layout: &PlotLayouts, plot_index: i32) -> Vec<&'a Data> {
+    let plot_data: Vec<&Data> = plot_layout.series.iter()
+        // Find the SeriesQueries that go into the current plot.
+        .filter(|serie| serie.plot_index == plot_index)
+        // Find the data for which the path matches the query path and index range.
+        .flat_map(|serie| filter_data_for_series(data, serie))
+        .collect();
+    plot_data
 }
 
 fn init_plot<'a>(id_source: Id, link_id: Id) -> egui_plot::Plot<'a> {
@@ -281,4 +330,63 @@ fn init_plot<'a>(id_source: Id, link_id: Id) -> egui_plot::Plot<'a> {
         .allow_zoom([true, false])
         .height(400.0)
         .link_axis(link_id, [true, false])
+}
+
+
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_parse() {
+        let res = parse("data/test[1:2], foo | taz[], all/that/is/there/toz[3],cat[4:]| bar, baz[:5,6:,7:8]");
+        assert_eq!(res.plot_count, 3);
+        assert_eq!(res.series.len(), 7);
+
+        // TODO: Add more tests.
+    }
+
+
+    #[test]
+    fn test_parse_a() {
+        let res = parse("trig[0]");
+        assert_eq!(res.plot_count, 1);
+        assert_eq!(res.series.len(), 1);
+        assert_eq!(res.series[0].ranges.len(), 1);
+        let range = res.series[0].ranges[0];
+        assert_eq!(range.0, 0);
+        assert_eq!(range.1, 0);
+    }
+
+    #[test]
+    fn test_data_for_plot() {
+        let mut sin = Data::create("/data/trig[0]");
+        let mut cos = Data::create("/data/trig[1]");
+
+        let mut data = Vec::new();
+        data.push(sin);
+        data.push(cos);
+
+        let plot_layout = parse("trig[0] | trig\n | trig[:]");
+
+        {
+            let plot_data = data_for_plot(
+                &data, &plot_layout, 0);
+            assert_eq!(plot_data.len(), 1);
+        }
+
+        {
+            let plot_data = data_for_plot(
+                &data, &plot_layout, 1);
+            assert_eq!(plot_data.len(), 2);
+        }
+
+        {
+            let plot_data = data_for_plot(
+                &data, &plot_layout, 2);
+            assert_eq!(plot_data.len(), 2);
+        }
+
+        // TODO: Add more tests.
+    }
 }
